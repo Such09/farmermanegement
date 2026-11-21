@@ -1,0 +1,118 @@
+import axios from "axios";
+import { Router } from "express";
+import { creatUser, loginUser, logoutUser } from "../controller/user_controller.js";
+import { isValidUser } from "../middleware/isValidUser.js";
+
+// farmer profile data
+import { 
+    addCrop, 
+    crops_info, 
+    getNotificationData, 
+    notification, 
+    removeCropRecord, 
+    removeMessage, 
+    updateCropDetail, 
+    userCropDetail, 
+    userProfile 
+} from "../controller/userProfile.js";
+
+import { fertilizers, seeds } from "../controller/argri_product_controller.js";
+import { upload } from "../middleware/fileUploder.js";
+import { scanCrop } from "../controller/scanCropPhoto.js";
+import { cropInfo } from "../controller/cropInfo_contro.js";
+import { loginAdmin, logoutAdmin, resiterAdmin } from "../controller/admin_contro.js";
+import { adminProfile } from "../controller/Admin_controller/adminProfile.js";
+import { addNewCrop, addNewFertilizer, addNewSeed } from "../controller/Admin_controller/addNewProducts.js";
+import { farmersData } from "../controller/Admin_controller/getFarmerData.js";
+import { userMessage } from "../controller/contactContro.js";
+import { cropRates } from "../controller/crop_Rate.js";
+import { weatherData } from "../controller/weather_info.js";
+import { messages } from "../controller/Admin_controller/massaging.js";
+
+
+const router = Router();
+
+// User Authentication
+router.post('/creat_user', creatUser);
+router.post('/login', loginUser);
+router.get(`/logout`, logoutUser);
+
+// Valid user
+router.get(`/profile`, isValidUser, userProfile);
+
+// Agri products
+router.get('/fertilizer', fertilizers);
+router.get(`/seed`, seeds);
+
+// Mandi price - search crop live price
+router.get('/crop_price', cropRates);
+
+// Weather information
+router.get('/weather_info', weatherData);
+
+// Search
+router.get(`/cropinfo`, cropInfo);
+
+// get notification data
+router.get(`/notification_data`, isValidUser, getNotificationData);
+
+// remove notification or messages
+router.patch('/remove_message', isValidUser, removeMessage);
+
+// update Farmer Details
+router.patch('/addcrop', addCrop);
+router.get(`/crops`, isValidUser, crops_info);
+router.patch(`/rm_record/:id`, isValidUser, removeCropRecord);
+router.get(`/user_crop/:id`, userCropDetail);
+router.patch(`/update_record`, isValidUser, updateCropDetail);
+
+// Scan crops data Gemini AI 
+router.post(`/scan`, upload.single("crop"), scanCrop);
+
+// Contact Us
+router.post('/contact', userMessage);
+
+
+// Admin Authentication
+router.post(`/resister_admin`, resiterAdmin);
+router.post(`/login_admin`, loginAdmin);
+router.get(`/logout_admin`, logoutAdmin);
+
+// Valid admin
+router.get(`/ad_profile`, isValidUser, adminProfile);
+
+// Add new Products
+router.post(`/add_fertilizer`, upload.single("pic"), addNewFertilizer);
+router.post(`/add_seed`, upload.single("pic"), addNewSeed);
+router.post(`/add_crop`, upload.single("pic"), addNewCrop);
+
+// messages (quetion) replay
+router.post('/sent_replay', notification)
+
+// Search Farmers
+router.get(`/farmer_data`, farmersData);
+
+// Get farmer queries - messages
+router.get('/messages', messages);
+
+router.get("/test-api", async (req, res) => {
+    try {
+        const response = await axios.get(
+            "https://api.data.gov.in/",
+            { timeout: 15000 }
+        );
+
+        res.json({
+            status: response.status,
+            message: "Connected"
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            code: error.code,
+            message: error.message
+        });
+    }
+});
+
+export { router }

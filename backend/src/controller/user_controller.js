@@ -1,0 +1,143 @@
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { User } from "../model/user_model.js";
+
+// Resister
+export const creatUser = async (req, res) => {
+    try {
+        const { name, email, password } = req.body; // Destructuring properties
+
+        const isExist = await User.findOne({ email: email });  // find user exist or not
+
+        if (isExist) {
+            return res.status(200).json({
+                message: "Farmer is already exist"
+            })
+        }
+
+        const hash = await bcrypt.hash(password, 10)  // Convert in hash password
+
+        const user = await User.create({    // Create new user
+            name,
+            email,
+            password: hash      // Store hash password in database
+        });
+
+        return res.status(201).json({
+            message: "Your account create successfully"
+        })
+    } catch (error) {
+        return res.status(500).json({
+            message: "something went wrong"
+        })
+    }
+}
+
+// Login user
+export const loginUser = async (req, res) => {
+    try {
+        const { email, password } = req.body        
+        const user = await User.findOne({ email: email })  // Check user resiter or not
+
+        if (!user) {
+            return res.status(400).json({
+                message: "farmer is not resiter, create your account first"
+            })
+        }
+
+        const match = await bcrypt.compare(password, user.password)  // Compare password
+
+        if (!match) {                       // user enter wrong password
+            return res.status(400).json({
+                message: "something went wrong"
+            })
+        }
+
+        // Create access and refresh token
+        const accessToken = jwt.sign({ id: user._id }, `${process.env.ACCESS_SCREAT}`, { expiresIn: `${process.env.ACCESS_EXPIRY}` })
+        const refreshToken = jwt.sign({ id: user._id }, `${process.env.REFRESH_SCREAT}`, { expiresIn: `${process.env.REFRESH_EXPIRY}` })
+
+        // Set cookies on Brower
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: true,      // false ? access HTTP & HTTPS : only HTTPS
+            sameSite: 'none',
+            maxAge: 60 * 60 * 1000
+        })
+
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
+            maxAge: 24 * 60 * 60 * 1000
+        })
+
+        // Save refreshToken is Database
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        return res.status(200).json({
+            message: "You are longin successfully."
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+}
+
+// Logout user
+export const logoutUser = async (req, res) => {
+    try {
+        const refreshToken = req.cookies.refreshToken;
+
+        if (!refreshToken) {
+            return res.status(401).json({
+                message: "Logout successfully"
+            })
+        }
+
+        const info = jwt.verify(refreshToken, process.env.REFRESH_SCREAT)
+
+        if (!info) {
+            return res.status(401).json({
+                message: "Logout successfully"
+            })
+        }
+        
+        const user = await User.findById(info.id);
+        
+        if(!user){
+            return res.status(401).json({
+                message: "something went wrong"
+            });
+        }
+
+        // Remove refreshToken
+        user.refreshToken = "";
+        user.save();
+
+        // Remove cookies from Broser
+        res.clearCookie("accessToken", {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none"
+        });
+
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none"
+        });
+
+        return res.status(200).json({
+            message: "Logout successfully"
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "something went wrong"
+        });
+    }
+}
